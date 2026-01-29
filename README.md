@@ -44,4 +44,6 @@ FUTURE ENHANCEMENTS:
 - Scenario-based reporting
 - Cost variability anaysis.
 
-
+LIVE DEMO:
+---------
+https://retail-decision-intelligence-rkrvpjjuawihfrz95or6vq.streamlit.app
