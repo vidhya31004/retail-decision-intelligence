@@ -51,31 +51,32 @@ if st.session_state.user is None:
     st.warning("Please log in to continue")
     st.stop()
 
-# Logged-in user info
+# Logged-in user identity
 user_id = st.session_state.user["localId"]
 user_email = st.session_state.user["email"]
 st.sidebar.success(f"Logged in as: {user_email}")
-# ==========================================
+# ============================================
 
 
 # ================= DASHBOARD =================
 st.title("📊 Retail Decision Intelligence Dashboard")
 
-# Load data
+# -------- LOAD DATA (SAFE + BACKWARD COMPATIBLE) --------
 try:
     df = pd.read_csv("data/retail_sales.csv")
-
-# Ensure user_id column exists (for backward compatibility)
-if "user_id" not in df.columns:
-    df["user_id"] = user_id
-
 except FileNotFoundError:
     df = pd.DataFrame(
         columns=["user_id", "date", "product", "price", "quantity", "cost"]
     )
 
-# Filter only THIS user's data
+# Ensure user_id column exists (for old CSVs)
+if "user_id" not in df.columns:
+    df["user_id"] = user_id
+
+# Filter data for current user only
 df = df[df["user_id"] == user_id]
+# -------------------------------------------------------
+
 
 # ---------------- ADD DATA ----------------
 st.subheader("✍️ Add Sales Data")
@@ -103,12 +104,14 @@ with st.form("add_data"):
         df.to_csv("data/retail_sales.csv", index=False)
         st.success("✅ Data added successfully. Refresh to see updates.")
 
+
 # ---------------- NO DATA CASE ----------------
 if df.empty:
     st.info("No data yet. Add sales data to see insights.")
     st.stop()
 
-# ---------------- KPIs ----------------
+
+# ---------------- KPI CALCULATIONS ----------------
 df["revenue"] = df["price"] * df["quantity"]
 df["profit"] = df["revenue"] - (df["cost"] * df["quantity"])
 
@@ -117,17 +120,19 @@ col1, col2 = st.columns(2)
 col1.metric("Total Revenue", round(df["revenue"].sum(), 2))
 col2.metric("Total Profit", round(df["profit"].sum(), 2))
 
+
 # ---------------- FORECAST ----------------
 forecast_demand = df["quantity"].rolling(window=3).mean().iloc[-1]
 
 st.subheader("📈 Forecasted Demand")
 st.metric("Next Period Demand", round(forecast_demand, 2))
 
+
 # ---------------- PRICE SIMULATION ----------------
 st.subheader("🎯 Price Simulation")
 
 avg_price = df["price"].mean()
-cost = df["cost"].iloc[-1]
+unit_cost = df["cost"].iloc[-1]
 
 price_options = [95, 100, 105, 110]
 results = []
@@ -138,7 +143,7 @@ for p in price_options:
     else:
         demand = forecast_demand * 1.05
 
-    profit_val = (p - cost) * demand
+    profit_val = (p - unit_cost) * demand
     results.append([p, round(demand, 1), round(profit_val, 2)])
 
 results_df = pd.DataFrame(
@@ -154,11 +159,13 @@ st.success(
     f"(Expected Profit: ₹{best['Estimated Profit']})"
 )
 
+
 # ---------------- CHART ----------------
 st.subheader("📊 Profit vs Price")
 st.line_chart(results_df.set_index("Price")["Estimated Profit"])
 
+
 # ---------------- GOVERNANCE ----------------
 st.caption(f"User-specific insights for: {user_email}")
-# ===========================================
+# ============================================
 
