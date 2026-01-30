@@ -3,7 +3,8 @@ Retail Decision Intelligence Platform
 OVERVIEW:
 --------
 
-This project is an end-to-end decision Intelligence system that supports pricing decisions by integrating KPI analysis, demand forecasting, scenario simulation and interactive dashboards.
+A public-facing Decision Intelligence and Business Intelligence platform that enables users to securely log in, upload their own sales data, and generate user-specific insights, including demand forecasts and pricing simulations.
+The platform is designed to mimic how modern BI systems support data-driven decision-making rather than just static reporting.
 
 BUSINESS PROBLEM:
 ----------------
@@ -14,12 +15,17 @@ This system helps in determining optimal price by evaluating multiple pricing sc
 KEY FEATURES:
 ------------
 
-- KPI Calculations (Revenue, Profit, Demand)
-- Simple demand forecasting 
-- Price-demand simulation
-- Automated decision recommendation 
-- Interactive BI dashboard
-- Visual analysis (Profit vs Price)
+-Public user autentication
+-User speciifc data isolation - each user sees only their own data/insights
+-Demand forecasting based on historical sales 
+-Price simulation under different price scenarios to evaluate profit
+-Interactive BI dashboard 
+-Live secure secret management
+
+LIVE DEMO:
+---------
+
+https://retail-decision-intelligence-23jgtiommvymhzb2uv6zms.streamlit.app
 
 TECH STACK:
 ----------
@@ -28,22 +34,20 @@ TECH STACK:
 - Pandas
 - Streamllit
 - Basic statistical Forecasting 
+- Firebase autentication
 
 BUSINESS IMPACT:
 ---------------
 
 The platform enables data-driven pricing decisions by:
-- Reducing guesswork in price setting 
-- Quantifies trade-offs between demand and profit 
-- Provides clear, explainable recommendations for manageres
+- Collect operational data from different stakeholders 
+- Secure access to business data
+- Performs forecasting and scenario analysis 
+-Supports pricing and revenue decision 
 
 FUTURE ENHANCEMENTS:
 -------------------
 
-- Advanced demand forecasting models 
-- Scenario-based reporting
-- Cost variability anaysis.
-
-LIVE DEMO:
----------
-https://retail-decision-intelligence-rkrvpjjuawihfrz95or6vq.streamlit.app
+- Audit logs for data changes 
+- Role-based access 
+- backed storage space for data 
