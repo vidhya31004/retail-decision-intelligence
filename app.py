@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
 import pyrebase
-# ---------- FIREBASE INIT ----------
+from datetime import date
+
+# ================= FIREBASE INIT =================
 firebase_config = {
     "apiKey": st.secrets["firebase"]["apiKey"],
     "authDomain": st.secrets["firebase"]["authDomain"],
@@ -14,29 +16,16 @@ firebase_config = {
 
 firebase = pyrebase.initialize_app(firebase_config)
 auth = firebase.auth()
-# ---------------------------------
+# =================================================
 
-# --- USER ENROLMENT ---
-st.sidebar.title("👤 User Enrolment")
 
-if "user" not in st.session_state:
-    st.session_state.user = ""
+# ================= AUTH UI =================
+st.sidebar.title("🔐 Account")
 
-user_name = st.sidebar.text_input("Enter your name")
-
-if user_name:
-    st.session_state.user = user_name
-    st.sidebar.success(f"Welcome, {user_name} 👋")
-else:
-    st.sidebar.info("Please enter your name to continue")
-    st.stop()
-# ---------- AUTH UI ----------
 if "user" not in st.session_state:
     st.session_state.user = None
 
-st.sidebar.title("🔐 Account")
-
-choice = st.sidebar.selectbox("Login / Signup", ["Login", "Sign Up"])
+choice = st.sidebar.selectbox("Login / Sign Up", ["Login", "Sign Up"])
 
 email = st.sidebar.text_input("Email")
 password = st.sidebar.text_input("Password", type="password")
@@ -61,134 +50,110 @@ if choice == "Login":
 if st.session_state.user is None:
     st.warning("Please log in to continue")
     st.stop()
-# --------------------------------
 
+# Logged-in user info
+user_id = st.session_state.user["localId"]
+user_email = st.session_state.user["email"]
+st.sidebar.success(f"Logged in as: {user_email}")
+# ==========================================
+
+
+# ================= DASHBOARD =================
 st.title("📊 Retail Decision Intelligence Dashboard")
-st.caption(f"Last updated by: {st.session_state.user}")
 
 # Load data
-df = pd.read_csv("data/retail_sales.csv")
-# ---------------- DATA ENTRY ----------------
-st.subheader("✍️ Add New Sales Data")
+try:
+    df = pd.read_csv("data/retail_sales.csv")
+except FileNotFoundError:
+    df = pd.DataFrame(
+        columns=["user_id", "date", "product", "price", "quantity", "cost"]
+    )
 
-with st.form("data_entry_form"):
-    new_date = st.date_input("Date")
-    new_product = st.selectbox("Product", df["product"].unique())
-    new_price = st.number_input("Price", min_value=0)
-    new_quantity = st.number_input("Quantity Sold", min_value=0)
-    new_cost = st.number_input("Unit Cost", min_value=0)
+# Filter only THIS user's data
+df = df[df["user_id"] == user_id]
+
+# ---------------- ADD DATA ----------------
+st.subheader("✍️ Add Sales Data")
+
+with st.form("add_data"):
+    new_date = st.date_input("Date", value=date.today())
+    product = st.text_input("Product")
+    price = st.number_input("Price", min_value=0.0)
+    quantity = st.number_input("Quantity Sold", min_value=0.0)
+    cost = st.number_input("Unit Cost", min_value=0.0)
 
     submitted = st.form_submit_button("Add Data")
 
     if submitted:
         new_row = {
+            "user_id": user_id,
             "date": new_date,
-            "product": new_product,
-            "price": new_price,
-            "quantity": new_quantity,
-            "cost": new_cost
+            "product": product,
+            "price": price,
+            "quantity": quantity,
+            "cost": cost
         }
 
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         df.to_csv("data/retail_sales.csv", index=False)
+        st.success("✅ Data added successfully. Refresh to see updates.")
 
-        st.success("✅ Data added successfully! Please refresh to see updates.")
-# --------------------------------------------
+# ---------------- NO DATA CASE ----------------
+if df.empty:
+    st.info("No data yet. Add sales data to see insights.")
+    st.stop()
 
-st.subheader("🛒 Select Product")
-product = st.selectbox("Choose a product", df["product"].unique())
+# ---------------- KPIs ----------------
+df["revenue"] = df["price"] * df["quantity"]
+df["profit"] = df["revenue"] - (df["cost"] * df["quantity"])
 
-df = df[df["product"] == product]
+st.subheader("📌 Key Metrics")
+col1, col2 = st.columns(2)
+col1.metric("Total Revenue", round(df["revenue"].sum(), 2))
+col2.metric("Total Profit", round(df["profit"].sum(), 2))
 
-# Forecast demand (simple rolling average)
+# ---------------- FORECAST ----------------
 forecast_demand = df["quantity"].rolling(window=3).mean().iloc[-1]
-avg_price = df["price"].mean()
-cost = df["cost"].iloc[-1]
 
 st.subheader("📈 Forecasted Demand")
 st.metric("Next Period Demand", round(forecast_demand, 2))
 
-# --- PRICE SLIDER ---
-st.subheader("🎯 Set Product Price")
-selected_price = st.slider(
-    "Choose Price (₹)",
-    min_value=90,
-    max_value=120,
-    step=5,
-    value=100
-)
+# ---------------- PRICE SIMULATION ----------------
+st.subheader("🎯 Price Simulation")
 
-# Demand adjustment logic
-if selected_price > avg_price:
-    estimated_demand = forecast_demand * 0.95
-else:
-    estimated_demand = forecast_demand * 1.05
-
-# Profit calculation
-revenue = selected_price * estimated_demand
-profit = revenue - (cost * estimated_demand)
-
-# --- RESULTS ---
-st.subheader("💡 Decision Outcome")
-
-col1, col2 = st.columns(2)
-col1.metric("Estimated Demand", round(estimated_demand, 1))
-col2.metric("Expected Profit (₹)", round(profit, 2))
-
-# --- AUTO RECOMMENDATION ---
-st.subheader("✅ System Recommendation")
+avg_price = df["price"].mean()
+cost = df["cost"].iloc[-1]
 
 price_options = [95, 100, 105, 110]
 results = []
 
-for price in price_options:
-    if price > avg_price:
+for p in price_options:
+    if p > avg_price:
         demand = forecast_demand * 0.95
     else:
         demand = forecast_demand * 1.05
 
-    profit_val = (price - cost) * demand
-    results.append([price, round(profit_val, 2)])
+    profit_val = (p - cost) * demand
+    results.append([p, round(demand, 1), round(profit_val, 2)])
 
-results_df = pd.DataFrame(results, columns=["Price", "Profit"])
-
-best_price = results_df.loc[results_df["Profit"].idxmax()]
-
-if selected_price == best_price["Price"]:
-    st.success(
-        f"🎯 Optimal Choice! ₹{int(best_price['Price'])} gives the highest profit."
-    )
-else:
-    st.warning(
-        f"⚠️ Better Option Available: "
-        f"₹{int(best_price['Price'])} yields higher profit."
-    )
-
-# --- SHOW TABLE ---
-with st.expander("📊 View All Price Scenarios"):
-    st.dataframe(results_df)
-
-st.subheader("🧠 Decision Explanation")
-
-if selected_price > avg_price:
-    st.write(
-        "The selected price is above the historical average. "
-        "This slightly reduces demand but improves margin per unit."
-    )
-else:
-    st.write(
-        "The selected price is below or equal to the historical average. "
-        "This increases demand but reduces margin per unit."
-    )
-
-st.write(
-    "The system balances demand and profit to identify the price "
-    "that maximizes overall business performance."
+results_df = pd.DataFrame(
+    results, columns=["Price", "Estimated Demand", "Estimated Profit"]
 )
 
-st.subheader("📈 Profit vs Price")
+st.dataframe(results_df)
 
-st.line_chart(
-    results_df.set_index("Price")["Profit"]
+best = results_df.loc[results_df["Estimated Profit"].idxmax()]
+
+st.success(
+    f"✅ Recommended Price: ₹{int(best['Price'])} "
+    f"(Expected Profit: ₹{best['Estimated Profit']})"
 )
+
+# ---------------- CHART ----------------
+st.subheader("📊 Profit vs Price")
+st.line_chart(results_df.set_index("Price")["Estimated Profit"])
+
+# ---------------- GOVERNANCE ----------------
+st.caption(f"User-specific insights for: {user_email}")
+# ===========================================
 
