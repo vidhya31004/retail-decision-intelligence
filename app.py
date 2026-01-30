@@ -64,6 +64,11 @@ st.title("📊 Retail Decision Intelligence Dashboard")
 # Load data
 try:
     df = pd.read_csv("data/retail_sales.csv")
+
+# Ensure user_id column exists (for backward compatibility)
+if "user_id" not in df.columns:
+    df["user_id"] = user_id
+
 except FileNotFoundError:
     df = pd.DataFrame(
         columns=["user_id", "date", "product", "price", "quantity", "cost"]
