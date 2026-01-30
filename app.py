@@ -1,10 +1,100 @@
 import streamlit as st
 import pandas as pd
+import pyrebase
+# ---------- FIREBASE INIT ----------
+firebase_config = {
+    "apiKey": st.secrets["firebase"]["apiKey"],
+    "authDomain": st.secrets["firebase"]["authDomain"],
+    "projectId": st.secrets["firebase"]["projectId"],
+    "storageBucket": st.secrets["firebase"]["storageBucket"],
+    "messagingSenderId": st.secrets["firebase"]["messagingSenderId"],
+    "appId": st.secrets["firebase"]["appId"],
+    "databaseURL": ""
+}
+
+firebase = pyrebase.initialize_app(firebase_config)
+auth = firebase.auth()
+# ---------------------------------
+
+# --- USER ENROLMENT ---
+st.sidebar.title("👤 User Enrolment")
+
+if "user" not in st.session_state:
+    st.session_state.user = ""
+
+user_name = st.sidebar.text_input("Enter your name")
+
+if user_name:
+    st.session_state.user = user_name
+    st.sidebar.success(f"Welcome, {user_name} 👋")
+else:
+    st.sidebar.info("Please enter your name to continue")
+    st.stop()
+# ---------- AUTH UI ----------
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+st.sidebar.title("🔐 Account")
+
+choice = st.sidebar.selectbox("Login / Signup", ["Login", "Sign Up"])
+
+email = st.sidebar.text_input("Email")
+password = st.sidebar.text_input("Password", type="password")
+
+if choice == "Sign Up":
+    if st.sidebar.button("Create Account"):
+        try:
+            auth.create_user_with_email_and_password(email, password)
+            st.sidebar.success("Account created! Please log in.")
+        except:
+            st.sidebar.error("Signup failed")
+
+if choice == "Login":
+    if st.sidebar.button("Login"):
+        try:
+            user = auth.sign_in_with_email_and_password(email, password)
+            st.session_state.user = user
+            st.sidebar.success("Logged in successfully")
+        except:
+            st.sidebar.error("Login failed")
+
+if st.session_state.user is None:
+    st.warning("Please log in to continue")
+    st.stop()
+# --------------------------------
 
 st.title("📊 Retail Decision Intelligence Dashboard")
+st.caption(f"Last updated by: {st.session_state.user}")
 
 # Load data
 df = pd.read_csv("data/retail_sales.csv")
+# ---------------- DATA ENTRY ----------------
+st.subheader("✍️ Add New Sales Data")
+
+with st.form("data_entry_form"):
+    new_date = st.date_input("Date")
+    new_product = st.selectbox("Product", df["product"].unique())
+    new_price = st.number_input("Price", min_value=0)
+    new_quantity = st.number_input("Quantity Sold", min_value=0)
+    new_cost = st.number_input("Unit Cost", min_value=0)
+
+    submitted = st.form_submit_button("Add Data")
+
+    if submitted:
+        new_row = {
+            "date": new_date,
+            "product": new_product,
+            "price": new_price,
+            "quantity": new_quantity,
+            "cost": new_cost
+        }
+
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        df.to_csv("data/retail_sales.csv", index=False)
+
+        st.success("✅ Data added successfully! Please refresh to see updates.")
+# --------------------------------------------
+
 st.subheader("🛒 Select Product")
 product = st.selectbox("Choose a product", df["product"].unique())
 
