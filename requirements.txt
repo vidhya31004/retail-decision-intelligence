@@ -1,4 +1,4 @@
-git add requirements.txt
-git commit -m "Add requirements for Streamlit deployment"
-git push
+streamlit
+pandas
+pyrebase4
 
