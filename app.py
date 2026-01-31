@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import pyrebase
-from datetime import date
 
 # ================= FIREBASE INIT =================
 firebase_config = {
@@ -19,7 +18,7 @@ auth = firebase.auth()
 # =================================================
 
 
-# ================= AUTH UI =================
+# ================= AUTH =================
 st.sidebar.title("🔐 Account")
 
 if "user" not in st.session_state:
@@ -53,25 +52,27 @@ if st.session_state.user is None:
 user_id = st.session_state.user["localId"]
 user_email = st.session_state.user["email"]
 st.sidebar.success(f"Logged in as: {user_email}")
-# ============================================
+
+# Session flag → insights only after upload
+if "data_uploaded" not in st.session_state:
+    st.session_state.data_uploaded = False
+# ========================================
 
 
 # ================= DASHBOARD =================
 st.title("📊 Decision Intelligence Dashboard")
 
-# -------- LOAD DATA (SAFE + BACKWARD COMPATIBLE) --------
+# -------- LOAD DATA --------
 try:
     df = pd.read_csv("data/retail_sales.csv")
 except FileNotFoundError:
-    df = pd.DataFrame(
-        columns=["user_id", "price", "quantity", "cost"]
-    )
+    df = pd.DataFrame(columns=["user_id", "price", "quantity", "cost"])
 
 if "user_id" not in df.columns:
     df["user_id"] = user_id
 
 df = df[df["user_id"] == user_id]
-# -------------------------------------------------------
+# -------------------------------------------
 
 
 # ================= FILE UPLOAD =================
@@ -148,12 +149,17 @@ if uploaded_file is not None:
         df = pd.concat([df, standardized_df], ignore_index=True)
         df.to_csv("data/retail_sales.csv", index=False)
 
-        st.success("✅ Data ingested successfully. Refresh to update insights.")
+        st.session_state.data_uploaded = True
+        st.success("✅ Data ingested successfully. Insights generated below.")
 
 
 # ================= ANALYTICS =================
+if not st.session_state.data_uploaded:
+    st.info("📤 Upload a dataset to generate insights.")
+    st.stop()
+
 if df.empty:
-    st.info("No data available yet. Upload a dataset to see insights.")
+    st.warning("Uploaded file contains no usable data.")
     st.stop()
 
 df["revenue"] = df["price"] * df["quantity"]
@@ -173,7 +179,7 @@ st.metric("Next Period Demand", round(forecast_demand, 2))
 
 
 # ---------------- DATA-DRIVEN SIMULATION ----------------
-st.subheader("🎯 Pricing Scenario Simulation (User Data Driven)")
+st.subheader("🎯 Pricing Scenario Simulation (User-Driven)")
 
 min_price = df["price"].min()
 max_price = df["price"].max()
@@ -213,6 +219,6 @@ st.subheader("📊 Profit vs Price")
 st.line_chart(results_df.set_index("Simulated Price")["Estimated Profit"])
 
 
-# ================= GOVERNANCE =================
+# ================= FOOTER =================
 st.caption(f"User-specific insights for: {user_email}")
 
