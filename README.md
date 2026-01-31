@@ -1,53 +1,43 @@
-Retail Decision Intelligence Platform
+DECISION INTELLIGENCE PLATFORM 
 
-OVERVIEW:
---------
+A public intelligence platform that enables users to securly upload real-world sales datasets, cleana nd standradize messy data and generates data-driven insights such as demand forecasts, revenue metrices and pricing simulations. 
+This system is designed with a motive of reflecting real BI workflows, including user specific analytics and explicit data-cleaning assumptions.
 
-A public-facing Decision Intelligence and Business Intelligence platform that enables users to securely log in, upload their own sales data, and generate user-specific insights, including demand forecasts and pricing simulations.
-The platform is designed to mimic how modern BI systems support data-driven decision-making rather than just static reporting.
-
-BUSINESS PROBLEM:
-----------------
-
-Retail business often suffers from setting optimal price that balances demand and profitability.
-This system helps in determining optimal price by evaluating multiple pricing scenarios and recommends the price that maximizes expected profit.
-
-KEY FEATURES:
+KEY FEATURES
 ------------
+- User autentication - firebase(email/password)
+- User specific data 
+- File based data ingestion 
+- Schema-flexible ingestion
+- User confirmed column mappings
+- Missing value handling
+- Decision Intelligence outputs 
 
--Public user autentication
--User speciifc data isolation - each user sees only their own data/insights
--Demand forecasting based on historical sales 
--Price simulation under different price scenarios to evaluate profit
--Interactive BI dashboard 
--Live secure secret management
-
-LIVE DEMO:
+LIVE DEMO
 ---------
-
 https://retail-decision-intelligence-23jgtiommvymhzb2uv6zms.streamlit.app
 
-TECH STACK:
+EXPECTED DATASET FORMAT
+-----------------------
+File type : CSV 
+Column names are also flexible
+Dataset must contain at least:
+- one price-related column
+- one quantity-related column
+
+DATA ASSUMPTIONS 
+----------------
+Users explicitly choose how missing values are handled:
+- Row exclusion 
+- Mean imputation
+- Median imputation
+Aggrtegations and forecasts are based on user-uploaded data 
+
+TECH STACK
 ----------
+-Streamlit 
+-Python 
+-Pandas 
+-Firecase 
+-Streamlit Community Cloud 
 
-- Python 
-- Pandas
-- Streamllit
-- Basic statistical Forecasting 
-- Firebase autentication
-
-BUSINESS IMPACT:
----------------
-
-The platform enables data-driven pricing decisions by:
-- Collect operational data from different stakeholders 
-- Secure access to business data
-- Performs forecasting and scenario analysis 
--Supports pricing and revenue decision 
-
-FUTURE ENHANCEMENTS:
--------------------
-
-- Audit logs for data changes 
-- Role-based access 
-- backed storage space for data 
