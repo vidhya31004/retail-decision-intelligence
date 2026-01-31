@@ -53,7 +53,7 @@ user_id = st.session_state.user["localId"]
 user_email = st.session_state.user["email"]
 st.sidebar.success(f"Logged in as: {user_email}")
 
-# Session flag → insights only after upload
+# Session flag: insights only after upload
 if "data_uploaded" not in st.session_state:
     st.session_state.data_uploaded = False
 # ========================================
@@ -90,7 +90,7 @@ if uploaded_file is not None:
 
     # -------- COLUMN DETECTION --------
     def normalize(col):
-        return col.lower().replace(" ", "").replace("_", "")
+        return col.lower().replace(" ", "").replace("_", "").replace("(", "").replace(")", "")
 
     price_keywords = ["price", "unitprice", "sellingprice", "mrp", "rate"]
     quantity_keywords = ["quantity", "qty", "units", "volume", "demand"]
@@ -137,6 +137,18 @@ if uploaded_file is not None:
         index=0 if detected_cost is None else list(raw_df.columns).index(detected_cost) + 1
     )
 
+    # -------- MISSING VALUE HANDLING --------
+    st.subheader("🧹 Missing Value Handling")
+
+    missing_strategy = st.radio(
+        "How should missing values be handled?",
+        options=[
+            "Drop rows with missing values",
+            "Fill missing values with mean",
+            "Fill missing values with median"
+        ]
+    )
+
     confirm = st.button("✅ Confirm and Ingest Data")
 
     if confirm:
@@ -145,6 +157,22 @@ if uploaded_file is not None:
         standardized_df["quantity"] = raw_df[quantity_col]
         standardized_df["cost"] = raw_df[cost_col] if cost_col != "None" else 0
         standardized_df["user_id"] = user_id
+
+        # ---- Apply missing value strategy ----
+        if missing_strategy == "Drop rows with missing values":
+            standardized_df = standardized_df.dropna(subset=["price", "quantity"])
+
+        elif missing_strategy == "Fill missing values with mean":
+            for col in ["price", "quantity", "cost"]:
+                standardized_df[col] = standardized_df[col].fillna(
+                    standardized_df[col].mean()
+                )
+
+        elif missing_strategy == "Fill missing values with median":
+            for col in ["price", "quantity", "cost"]:
+                standardized_df[col] = standardized_df[col].fillna(
+                    standardized_df[col].median()
+                )
 
         df = pd.concat([df, standardized_df], ignore_index=True)
         df.to_csv("data/retail_sales.csv", index=False)
@@ -159,7 +187,7 @@ if not st.session_state.data_uploaded:
     st.stop()
 
 if df.empty:
-    st.warning("Uploaded file contains no usable data.")
+    st.warning("Uploaded data contains no usable rows.")
     st.stop()
 
 df["revenue"] = df["price"] * df["quantity"]
