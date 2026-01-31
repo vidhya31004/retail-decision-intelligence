@@ -26,7 +26,6 @@ if "user" not in st.session_state:
     st.session_state.user = None
 
 choice = st.sidebar.selectbox("Login / Sign Up", ["Login", "Sign Up"])
-
 email = st.sidebar.text_input("Email")
 password = st.sidebar.text_input("Password", type="password")
 
@@ -51,7 +50,6 @@ if st.session_state.user is None:
     st.warning("Please log in to continue")
     st.stop()
 
-# Logged-in user identity
 user_id = st.session_state.user["localId"]
 user_email = st.session_state.user["email"]
 st.sidebar.success(f"Logged in as: {user_email}")
@@ -59,66 +57,112 @@ st.sidebar.success(f"Logged in as: {user_email}")
 
 
 # ================= DASHBOARD =================
-st.title("📊 Retail Decision Intelligence Dashboard")
+st.title("📊 Decision Intelligence Dashboard")
 
 # -------- LOAD DATA (SAFE + BACKWARD COMPATIBLE) --------
 try:
     df = pd.read_csv("data/retail_sales.csv")
 except FileNotFoundError:
     df = pd.DataFrame(
-        columns=["user_id", "date", "product", "price", "quantity", "cost"]
+        columns=["user_id", "price", "quantity", "cost"]
     )
 
-# Ensure user_id column exists (for old CSVs)
 if "user_id" not in df.columns:
     df["user_id"] = user_id
 
-# Filter data for current user only
 df = df[df["user_id"] == user_id]
 # -------------------------------------------------------
 
 
-# ---------------- ADD DATA ----------------
-st.subheader("✍️ Add Sales Data")
+# ================= FILE UPLOAD =================
+st.subheader("📤 Upload Sales Dataset (CSV)")
 
-with st.form("add_data"):
-    new_date = st.date_input("Date", value=date.today())
-    product = st.text_input("Product")
-    price = st.number_input("Price", min_value=0.0)
-    quantity = st.number_input("Quantity Sold", min_value=0.0)
-    cost = st.number_input("Unit Cost", min_value=0.0)
+uploaded_file = st.file_uploader(
+    "Upload a CSV file (multiple uploads supported)",
+    type=["csv"]
+)
 
-    submitted = st.form_submit_button("Add Data")
+if uploaded_file is not None:
+    raw_df = pd.read_csv(uploaded_file)
+    st.write("📄 Preview of uploaded data")
+    st.dataframe(raw_df.head())
 
-    if submitted:
-        new_row = {
-            "user_id": user_id,
-            "date": new_date,
-            "product": product,
-            "price": price,
-            "quantity": quantity,
-            "cost": cost
-        }
+    # -------- COLUMN DETECTION --------
+    def normalize(col):
+        return col.lower().replace(" ", "").replace("_", "")
 
-        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    price_keywords = ["price", "unitprice", "sellingprice", "mrp", "rate"]
+    quantity_keywords = ["quantity", "qty", "units", "volume", "demand"]
+    cost_keywords = ["cost", "unitcost", "cogs", "margin"]
+
+    detected_price = None
+    detected_quantity = None
+    detected_cost = None
+
+    for col in raw_df.columns:
+        col_norm = normalize(col)
+        if any(k in col_norm for k in price_keywords):
+            detected_price = col
+        if any(k in col_norm for k in quantity_keywords):
+            detected_quantity = col
+        if any(k in col_norm for k in cost_keywords):
+            detected_cost = col
+
+    if detected_price is None or detected_quantity is None:
+        st.error(
+            "❌ Could not detect Price or Quantity columns.\n"
+            "Ensure your file contains at least one price-related and one quantity-related column."
+        )
+        st.stop()
+
+    # -------- USER CONFIRMATION --------
+    st.subheader("🔎 Confirm Column Mapping")
+
+    price_col = st.selectbox(
+        "Select Price column",
+        options=raw_df.columns,
+        index=list(raw_df.columns).index(detected_price)
+    )
+
+    quantity_col = st.selectbox(
+        "Select Quantity column",
+        options=raw_df.columns,
+        index=list(raw_df.columns).index(detected_quantity)
+    )
+
+    cost_col = st.selectbox(
+        "Select Cost column (optional)",
+        options=["None"] + list(raw_df.columns),
+        index=0 if detected_cost is None else list(raw_df.columns).index(detected_cost) + 1
+    )
+
+    confirm = st.button("✅ Confirm and Ingest Data")
+
+    if confirm:
+        standardized_df = pd.DataFrame()
+        standardized_df["price"] = raw_df[price_col]
+        standardized_df["quantity"] = raw_df[quantity_col]
+        standardized_df["cost"] = raw_df[cost_col] if cost_col != "None" else 0
+        standardized_df["user_id"] = user_id
+
+        df = pd.concat([df, standardized_df], ignore_index=True)
         df.to_csv("data/retail_sales.csv", index=False)
-        st.success("✅ Data added successfully. Refresh to see updates.")
+
+        st.success("✅ Data ingested successfully. Refresh to update insights.")
 
 
-# ---------------- NO DATA CASE ----------------
+# ================= ANALYTICS =================
 if df.empty:
-    st.info("No data yet. Add sales data to see insights.")
+    st.info("No data available yet. Upload a dataset to see insights.")
     st.stop()
 
-
-# ---------------- KPI CALCULATIONS ----------------
 df["revenue"] = df["price"] * df["quantity"]
 df["profit"] = df["revenue"] - (df["cost"] * df["quantity"])
 
 st.subheader("📌 Key Metrics")
-col1, col2 = st.columns(2)
-col1.metric("Total Revenue", round(df["revenue"].sum(), 2))
-col2.metric("Total Profit", round(df["profit"].sum(), 2))
+c1, c2 = st.columns(2)
+c1.metric("Total Revenue", round(df["revenue"].sum(), 2))
+c2.metric("Total Profit", round(df["profit"].sum(), 2))
 
 
 # ---------------- FORECAST ----------------
@@ -128,44 +172,47 @@ st.subheader("📈 Forecasted Demand")
 st.metric("Next Period Demand", round(forecast_demand, 2))
 
 
-# ---------------- PRICE SIMULATION ----------------
-st.subheader("🎯 Price Simulation")
+# ---------------- DATA-DRIVEN SIMULATION ----------------
+st.subheader("🎯 Pricing Scenario Simulation (User Data Driven)")
 
+min_price = df["price"].min()
+max_price = df["price"].max()
 avg_price = df["price"].mean()
-unit_cost = df["cost"].iloc[-1]
+avg_quantity = df["quantity"].mean()
+avg_cost = df["cost"].mean()
 
-price_options = [95, 100, 105, 110]
+price_range = sorted(set([
+    round(min_price * 0.95, 2),
+    round(avg_price * 0.95, 2),
+    round(avg_price, 2),
+    round(avg_price * 1.05, 2),
+    round(max_price * 1.05, 2)
+]))
+
 results = []
 
-for p in price_options:
-    if p > avg_price:
-        demand = forecast_demand * 0.95
-    else:
-        demand = forecast_demand * 1.05
-
-    profit_val = (p - unit_cost) * demand
-    results.append([p, round(demand, 1), round(profit_val, 2)])
+for p in price_range:
+    demand = avg_quantity * (0.9 if p > avg_price else 1.1)
+    profit_val = (p - avg_cost) * demand
+    results.append([p, round(demand, 2), round(profit_val, 2)])
 
 results_df = pd.DataFrame(
-    results, columns=["Price", "Estimated Demand", "Estimated Profit"]
+    results,
+    columns=["Simulated Price", "Estimated Demand", "Estimated Profit"]
 )
 
 st.dataframe(results_df)
 
 best = results_df.loc[results_df["Estimated Profit"].idxmax()]
-
 st.success(
-    f"✅ Recommended Price: ₹{int(best['Price'])} "
+    f"✅ Recommended Price: ₹{best['Simulated Price']} "
     f"(Expected Profit: ₹{best['Estimated Profit']})"
 )
 
-
-# ---------------- CHART ----------------
 st.subheader("📊 Profit vs Price")
-st.line_chart(results_df.set_index("Price")["Estimated Profit"])
+st.line_chart(results_df.set_index("Simulated Price")["Estimated Profit"])
 
 
-# ---------------- GOVERNANCE ----------------
+# ================= GOVERNANCE =================
 st.caption(f"User-specific insights for: {user_email}")
-# ============================================
 
